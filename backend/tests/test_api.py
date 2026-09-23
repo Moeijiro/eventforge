@@ -1,0 +1,40 @@
+import pytest
+import datetime
+
+@pytest.mark.asyncio
+async def test_tournament_api_flow(client):
+    guild_id = "test-guild-77"
+
+    # 1. Create tournament
+    t_payload = {
+        "title": "Weekly Smash Cup",
+        "description": "Weekly open tournament.",
+        "format": "single_elimination",
+        "max_participants": 8,
+        "start_time": (datetime.datetime.utcnow() + datetime.timedelta(days=1)).isoformat()
+    }
+    t_res = await client.post(f"/api/v1/tournaments/{guild_id}", json=t_payload)
+    assert t_res.status_code == 201
+    tournament_id = t_res.json()["id"]
+
+    # 2. Join participants
+    for i in range(1, 5):
+        join_res = await client.post(f"/api/v1/tournaments/{guild_id}/{tournament_id}/join", json={
+            "user_id": f"usr_{i}",
+            "username": f"Gamer_{i}"
+        })
+        assert join_res.status_code == 200
+
+    # 3. Generate bracket
+    bracket_res = await client.post(f"/api/v1/tournaments/{guild_id}/{tournament_id}/generate-bracket")
+    assert bracket_res.status_code == 200
+    assert bracket_res.json()["total_matches"] == 3  # 4 players -> 2 (R1) + 1 (R2)
+
+@pytest.mark.asyncio
+async def test_demo_seed_endpoint(client):
+    seed_res = await client.post("/api/v1/demo/seed")
+    assert seed_res.status_code == 200
+
+    list_res = await client.get("/api/v1/tournaments/tourn-demo-777")
+    assert list_res.status_code == 200
+    assert len(list_res.json()) >= 1
