@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
-from app.db.models import Tournament, Match
+from app.models import Tournament, Match
 from app.bot.views import TournamentPanelView, QueueJoinView
 
 intents = discord.Intents.default()

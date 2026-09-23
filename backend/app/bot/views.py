@@ -1,15 +1,20 @@
 import discord
+
+from app.core.config import settings
 from discord import ui
 import datetime
 from sqlalchemy import select, and_
 from app.db.session import AsyncSessionLocal
-from app.db.models import Tournament, Participant, Match
+from app.models import Tournament, Participant, Match
 from app.services.match_flow import submit_match_score, confirm_match_score
 
 class TournamentPanelView(ui.View):
     def __init__(self, tournament_id: int):
         super().__init__(timeout=None)
         self.tournament_id = tournament_id
+        # Link buttons can't use the @ui.button decorator (it has no url=); they're added as items.
+        self.add_item(ui.Button(label="Bracket Web Portal", style=discord.ButtonStyle.link, emoji="🌳",
+                                url=f"{settings.APP_URL}/tournaments/{tournament_id}"))
 
     @ui.button(label="Register / Join", style=discord.ButtonStyle.success, emoji="⚔️", custom_id="tourn_join")
     async def join_button(self, interaction: discord.Interaction, button: ui.Button):
@@ -69,10 +74,6 @@ class TournamentPanelView(ui.View):
         )
         embed.set_footer(text=f"Total: {len(players)} players")
         await interaction.response.send_message(embed=embed, ephemeral=True)
-
-    @ui.button(label="Bracket Web Portal", style=discord.ButtonStyle.link, url="http://localhost:3000/dashboard", emoji="🌳")
-    async def bracket_link(self, interaction: discord.Interaction, button: ui.Button):
-        pass
 
 class QueueJoinView(ui.View):
     queue: list = []
