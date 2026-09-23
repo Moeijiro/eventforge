@@ -1,7 +1,7 @@
 import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
-from app.db.models import Match, Tournament, TournamentAuditLog
+from app.models import Match, Tournament, TournamentAuditLog
 
 async def advance_winner_to_next_round(match: Match, db: AsyncSession):
     """Places the winner into the corresponding match of round R+1."""

@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.db.session import get_db
-from app.db.models import Match
+from app.models import Match
 from app.schemas.match import MatchOut, MatchScoreSubmit, MatchConfirm, MatchDispute
 from app.services.match_flow import confirm_match_score, dispute_match, override_match, submit_match_score
 

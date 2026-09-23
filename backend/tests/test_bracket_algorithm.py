@@ -1,5 +1,5 @@
 import pytest
-from app.db.models import Participant
+from app.models import Participant
 from app.services.bracket import (
     get_next_power_of_two, generate_single_elimination_matches, generate_round_robin_pairings
 )
@@ -63,7 +63,7 @@ def test_bye_winners_are_placed_in_round_two():
 
 
 def test_round_robin_leader_breaks_ties_on_score_difference():
-    from app.db.models import Match
+    from app.models import Match
     from app.services.match_flow import round_robin_leader
 
     def played(a, b, sa, sb):

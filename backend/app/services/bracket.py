@@ -1,6 +1,6 @@
 import math
 from typing import List, Dict, Any, Tuple
-from app.db.models import Participant, Match
+from app.models import Participant, Match
 
 def get_next_power_of_two(n: int) -> int:
     if n <= 1:

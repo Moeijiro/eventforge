@@ -1,6 +1,6 @@
 import pytest
 from sqlalchemy import select
-from app.db.models import Tournament, Match
+from app.models import Tournament, Match
 from app.services.match_flow import submit_match_score, confirm_match_score, dispute_match
 from tests.conftest import TestingSessionLocal
 import datetime

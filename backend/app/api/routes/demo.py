@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Participant, Tournament
+from app.models import Participant, Tournament
 from app.db.session import get_db
 from app.services.bracket import generate_round_robin_pairings, generate_single_elimination_matches
 from app.services.match_flow import round_robin_leader

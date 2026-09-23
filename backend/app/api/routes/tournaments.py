@@ -4,7 +4,7 @@ from sqlalchemy import select, and_
 from typing import List
 
 from app.db.session import get_db
-from app.db.models import Tournament, Participant, Match, TournamentAuditLog
+from app.models import Tournament, Participant, Match, TournamentAuditLog
 from app.schemas.tournament import (
     TournamentCreate, TournamentOut, ParticipantCreate, ParticipantOut
 )
