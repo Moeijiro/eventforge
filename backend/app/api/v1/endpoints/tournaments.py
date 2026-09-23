@@ -75,6 +75,9 @@ async def join_tournament(
     if not t:
         raise HTTPException(status_code=404, detail="Tournament not found.")
 
+    if t.status not in ("registration_open", "check_in_open"):
+        raise HTTPException(status_code=409, detail="Registration for this tournament is closed.")
+
     # Check capacity
     stmt_p = select(Participant).where(Participant.tournament_id == t.id)
     res_p = await db.execute(stmt_p)
@@ -124,6 +127,9 @@ async def generate_bracket(guild_id: str, tournament_id: int, db: AsyncSession =
 
     if len(participants) < 2:
         raise HTTPException(status_code=400, detail="Need at least 2 participants to generate a bracket.")
+    existing = await db.execute(select(Match.id).where(Match.tournament_id == t.id).limit(1))
+    if existing.first() is not None:
+        raise HTTPException(status_code=409, detail="The bracket has already been generated.")
 
     if t.format == "round_robin":
         matches = generate_round_robin_pairings(t.id, participants)
@@ -146,6 +152,9 @@ async def generate_bracket(guild_id: str, tournament_id: int, db: AsyncSession =
 
 @router.get("/{guild_id}/{tournament_id}/matches", response_model=List[MatchOut])
 async def get_tournament_matches(guild_id: str, tournament_id: int, db: AsyncSession = Depends(get_db)):
+    owner = await db.execute(select(Tournament.id).where(and_(Tournament.guild_id == guild_id, Tournament.id == tournament_id)))
+    if owner.first() is None:
+        raise HTTPException(status_code=404, detail="Tournament not found.")
     stmt = select(Match).where(Match.tournament_id == tournament_id).order_by(Match.round_number.asc(), Match.match_number.asc())
     res = await db.execute(stmt)
     return res.scalars().all()

@@ -1,23 +1,23 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Literal, Optional, List
 import datetime
 
 class TournamentCreate(BaseModel):
     title: str = Field(..., min_length=3, max_length=255)
     description: str = Field(..., min_length=5)
-    format: str = Field("single_elimination", description="single_elimination, round_robin")
+    format: Literal["single_elimination", "round_robin"] = "single_elimination"
     max_participants: int = Field(16, ge=4, le=64)
     start_time: datetime.datetime
 
 class ParticipantCreate(BaseModel):
-    user_id: str
-    username: str
+    user_id: str = Field(..., min_length=1, max_length=32)
+    username: str = Field(..., min_length=1, max_length=64)
     avatar_url: Optional[str] = None
 
 class ParticipantOut(BaseModel):
     id: int
-    user_id: str
-    username: str
+    user_id: str = Field(..., min_length=1, max_length=32)
+    username: str = Field(..., min_length=1, max_length=64)
     avatar_url: Optional[str]
     seed: int
     is_checked_in: bool

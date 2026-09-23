@@ -38,3 +38,28 @@ async def test_demo_seed_endpoint(client):
     list_res = await client.get("/api/v1/tournaments/tourn-demo-777")
     assert list_res.status_code == 200
     assert len(list_res.json()) >= 1
+
+
+@pytest.mark.asyncio
+async def test_bracket_is_generated_once_and_closes_registration(client):
+    created = await client.post("/api/v1/tournaments/g-rules", json={
+        "title": "Rules Cup", "description": "Testing the rules", "format": "single_elimination",
+        "max_participants": 8, "start_time": "2026-10-01T18:00:00",
+    })
+    tid = created.json()["id"]
+    for i in range(3):
+        await client.post(f"/api/v1/tournaments/g-rules/{tid}/join", json={"user_id": f"u{i}", "username": f"User {i}"})
+
+    assert (await client.post(f"/api/v1/tournaments/g-rules/{tid}/generate-bracket")).status_code == 200
+    assert (await client.post(f"/api/v1/tournaments/g-rules/{tid}/generate-bracket")).status_code == 409
+    late = await client.post(f"/api/v1/tournaments/g-rules/{tid}/join", json={"user_id": "late", "username": "Late"})
+    assert late.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_demo_seed_is_idempotent(client):
+    await client.post("/api/v1/demo/seed")
+    await client.post("/api/v1/demo/seed")
+    tournaments = (await client.get("/api/v1/tournaments/tourn-demo-777")).json()
+    titles = [t["title"] for t in tournaments]
+    assert len(titles) == len(set(titles)) == 3
