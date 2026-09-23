@@ -4,9 +4,19 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com/)
 [![discord.py](https://img.shields.io/badge/Discord-discord.py%20v2.4-5865F2.svg?logo=discord)](https://discordpy.readthedocs.io/)
-[![Next.js](https://img.shields.io/badge/Frontend-Next.js%2014-black.svg?logo=next.js)](https://nextjs.org/)
+[![Next.js](https://img.shields.io/badge/Frontend-Next.js%2016-black.svg?logo=next.js)](https://nextjs.org/)
 
 > **EventForge** is a tournament, competitive event, and matchmaking platform built for Discord communities. It manages full competition lifecycles—from registration and check-ins to deterministic bracket generation (with automatic byes), score verification, dispute escalation, and live interactive bracket visualizations.
+
+![Live bracket](docs/screenshots/bracket.png)
+
+| Tournaments | Reporting and confirming a result |
+| --- | --- |
+| ![Tournaments](docs/screenshots/tournaments.png) | ![Match dialog](docs/screenshots/match-dialog.png) |
+| **Round-robin standings** | **Sign-ups** |
+| ![Standings](docs/screenshots/standings.png) | ![Sign-ups](docs/screenshots/signups.png) |
+| **Landing page** | **On a phone** |
+| ![Landing](docs/screenshots/landing.png) | <img src="docs/screenshots/mobile-bracket.png" width="260" alt="Bracket on a phone" /> |
 
 ---
 
@@ -78,8 +88,8 @@ For single-elimination tournaments with $N$ participants:
 
 ## Tech Stack
 
-- **Backend**: Python 3.11+, FastAPI, SQLAlchemy 2.0 (Async), `discord.py 2.4`, Pydantic v2, pytest
-- **Frontend**: Next.js 14, React 18, TypeScript, Tailwind CSS, Lucide Icons
+- **Backend**: Python 3.12+, FastAPI, SQLAlchemy 2.0 (Async), `discord.py 2.4`, Pydantic v2, pytest
+- **Frontend**: Next.js 16, React 19, TypeScript, Tailwind CSS 4, shadcn/ui (Radix), Lucide icons, Geist
 - **Database**: SQLite (Dev) / PostgreSQL (Production ready)
 
 ---
@@ -108,7 +118,21 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Visit `http://localhost:3000` to inspect EventForge.
+Visit `http://localhost:3000/dashboard` and press **Load demo** (idempotent — pressing it again changes nothing).
+
+### Demo walkthrough
+
+1. **Apex Summer Championship** is live: open the quarter-final marked *Awaiting confirmation* and **Confirm as EchoViper** — ShadowNinja moves into the semi-final.
+2. Open *TitanStriker vs Aether*, report a score, then open it again and **Dispute** it; settle it as staff by picking the winner.
+3. **Autumn Duos Cup** is taking sign-ups: add a player, then **Generate bracket** — sign-ups close and a second bracket can't be generated.
+4. **Spring Round Robin** shows the standings table (wins, then score difference) and its champion.
+
+### Rules the API enforces
+
+- Players with a first-round bye are placed straight into round two.
+- A score is reported by one player and confirmed or disputed by the other; knockout matches can't be tied.
+- Completed matches can't be reported or confirmed again; staff overrides must name one of the two players.
+- Round robins finish only when every match is confirmed; the winner has the most wins, then the best score difference.
 
 ---
 
