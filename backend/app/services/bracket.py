@@ -74,6 +74,20 @@ def generate_single_elimination_matches(tournament_id: int, participants: List[P
             all_matches.append(m)
         current_round_matches = next_round_matches
 
+    # Players with a first-round bye go straight into their round-2 slot.
+    # (Without this, round 2 had empty seats and the bracket could never finish.)
+    by_round = {(m.round_number, m.match_number): m for m in all_matches}
+    for match in round_1_matches:
+        if match.winner_id is None:
+            continue
+        target = by_round.get((2, (match.match_number + 1) // 2))
+        if target is None:
+            continue
+        if match.match_number % 2 == 1:
+            target.participant_a_id, target.participant_a_name = match.winner_id, match.winner_name
+        else:
+            target.participant_b_id, target.participant_b_name = match.winner_id, match.winner_name
+
     return all_matches
 
 def generate_round_robin_pairings(tournament_id: int, participants: List[Participant]) -> List[Match]:

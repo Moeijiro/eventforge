@@ -51,3 +51,25 @@ def test_round_robin_pairings():
     assert len(matches) == 6
     rounds = {m.round_number for m in matches}
     assert rounds == {1, 2, 3}
+
+
+def test_bye_winners_are_placed_in_round_two():
+    # 5 players -> bracket of 8 -> seeds 1-3 get byes and must already sit in round 2.
+    participants = [Participant(user_id=f"u_{i}", username=f"Player_{i}", seed=i) for i in range(1, 6)]
+    matches = generate_single_elimination_matches(tournament_id=1, participants=participants)
+    round_two = [m for m in matches if m.round_number == 2]
+    seated = {pid for m in round_two for pid in (m.participant_a_id, m.participant_b_id) if pid}
+    assert seated == {"u_1", "u_2", "u_3"}
+
+
+def test_round_robin_leader_breaks_ties_on_score_difference():
+    from app.db.models import Match
+    from app.services.match_flow import round_robin_leader
+
+    def played(a, b, sa, sb):
+        return Match(participant_a_id=a, participant_a_name=a, participant_b_id=b, participant_b_name=b,
+                     score_a=sa, score_b=sb, winner_id=a if sa > sb else b, status="completed")
+
+    # x and y both win twice; y's wins are bigger, so y leads.
+    matches = [played("x", "z", 1, 0), played("x", "y", 1, 0), played("y", "z", 5, 0), played("y", "w", 5, 0), played("w", "x", 1, 0)]
+    assert round_robin_leader(matches) == ("y", "y")
