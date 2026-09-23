@@ -1,4 +1,6 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1").replace(/\/$/, "");
+export const DEMO_GUILD = "tourn-demo-777";
+export const DEMO_GUILD_NAME = "Apex Arena";
 
 export interface Participant {
   id: number;
@@ -10,20 +12,25 @@ export interface Participant {
   joined_at: string;
 }
 
+export type TournamentStatus = "registration_open" | "check_in_open" | "in_progress" | "completed" | "cancelled";
+export type Format = "single_elimination" | "round_robin";
+
 export interface Tournament {
   id: number;
   guild_id: string;
   title: string;
   description: string;
-  format: string;
+  format: Format;
   max_participants: number;
-  status: "registration_open" | "check_in_open" | "in_progress" | "completed" | "cancelled";
+  status: TournamentStatus;
   start_time: string;
   winner_id: string | null;
   winner_name: string | null;
   created_at: string;
   participants_count: number;
 }
+
+export type MatchStatus = "scheduled" | "in_progress" | "awaiting_confirmation" | "disputed" | "completed";
 
 export interface Match {
   id: number;
@@ -38,79 +45,53 @@ export interface Match {
   score_b: number;
   winner_id: string | null;
   winner_name: string | null;
-  status: "scheduled" | "in_progress" | "awaiting_confirmation" | "disputed" | "completed";
+  status: MatchStatus;
   reported_by: string | null;
   confirmed_by: string | null;
 }
 
+export type NewTournament = { title: string; description: string; format: Format; max_participants: number; start_time: string };
+
+export class ApiError extends Error {
+  constructor(message: string, public status: number) {
+    super(message);
+  }
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, { ...init, headers: init?.body ? { "Content-Type": "application/json" } : undefined });
+  } catch {
+    throw new ApiError("Can't reach the EventForge API. Is the backend running on port 8000?", 0);
+  }
+  if (!res.ok) {
+    let message = `Request failed (HTTP ${res.status}).`;
+    try {
+      const data = await res.json();
+      if (typeof data?.detail === "string") message = data.detail;
+      else if (Array.isArray(data?.detail) && data.detail[0]?.msg) message = String(data.detail[0].msg);
+    } catch {
+      /* not JSON */
+    }
+    throw new ApiError(message, res.status);
+  }
+  return res.json() as Promise<T>;
+}
+
+const post = (body?: unknown): RequestInit => ({ method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
+
 export const api = {
-  async getTournaments(guildId: string = "tourn-demo-777"): Promise<Tournament[]> {
-    const res = await fetch(`${API_URL}/tournaments/${guildId}`);
-    if (!res.ok) throw new Error("Failed to load tournaments.");
-    return res.json();
-  },
-
-  async getTournament(guildId: string = "tourn-demo-777", id: number): Promise<{ tournament: Tournament; participants: Participant[] }> {
-    const res = await fetch(`${API_URL}/tournaments/${guildId}/${id}`);
-    if (!res.ok) throw new Error("Failed to load tournament detail.");
-    return res.json();
-  },
-
-  async createTournament(guildId: string = "tourn-demo-777", data: Partial<Tournament>): Promise<Tournament> {
-    const res = await fetch(`${API_URL}/tournaments/${guildId}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) throw new Error("Failed to create tournament.");
-    return res.json();
-  },
-
-  async joinTournament(guildId: string = "tourn-demo-777", id: number, user: { user_id: string; username: string }): Promise<Participant> {
-    const res = await fetch(`${API_URL}/tournaments/${guildId}/${id}/join`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(user),
-    });
-    if (!res.ok) throw new Error("Failed to join tournament.");
-    return res.json();
-  },
-
-  async generateBracket(guildId: string = "tourn-demo-777", id: number): Promise<void> {
-    const res = await fetch(`${API_URL}/tournaments/${guildId}/${id}/generate-bracket`, {
-      method: "POST",
-    });
-    if (!res.ok) throw new Error("Failed to generate bracket.");
-  },
-
-  async getMatches(guildId: string = "tourn-demo-777", id: number): Promise<Match[]> {
-    const res = await fetch(`${API_URL}/tournaments/${guildId}/${id}/matches`);
-    if (!res.ok) throw new Error("Failed to load bracket matches.");
-    return res.json();
-  },
-
-  async submitScore(matchId: number, reporterId: string, scoreA: number, scoreB: number): Promise<Match> {
-    const res = await fetch(`${API_URL}/matches/${matchId}/submit`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reporter_id: reporterId, score_a: scoreA, score_b: scoreB }),
-    });
-    if (!res.ok) throw new Error("Failed to submit score.");
-    return res.json();
-  },
-
-  async confirmScore(matchId: number, confirmerId: string): Promise<Match> {
-    const res = await fetch(`${API_URL}/matches/${matchId}/confirm`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ confirmer_id: confirmerId }),
-    });
-    if (!res.ok) throw new Error("Failed to confirm score.");
-    return res.json();
-  },
-
-  async seedDemo(): Promise<void> {
-    const res = await fetch(`${API_URL}/demo/seed`, { method: "POST" });
-    if (!res.ok) throw new Error("Failed to seed demo tournament.");
-  },
+  getTournaments: (guild = DEMO_GUILD) => request<Tournament[]>(`/tournaments/${guild}`),
+  getTournament: (id: number, guild = DEMO_GUILD) => request<{ tournament: Tournament; participants: Participant[] }>(`/tournaments/${guild}/${id}`),
+  createTournament: (data: NewTournament, guild = DEMO_GUILD) => request<Tournament>(`/tournaments/${guild}`, post(data)),
+  joinTournament: (id: number, user: { user_id: string; username: string }, guild = DEMO_GUILD) => request<Participant>(`/tournaments/${guild}/${id}/join`, post(user)),
+  generateBracket: (id: number, guild = DEMO_GUILD) => request<{ total_matches: number }>(`/tournaments/${guild}/${id}/generate-bracket`, post()),
+  getMatches: (id: number, guild = DEMO_GUILD) => request<Match[]>(`/tournaments/${guild}/${id}/matches`),
+  submitScore: (matchId: number, reporterId: string, scoreA: number, scoreB: number) =>
+    request<Match>(`/matches/${matchId}/submit`, post({ reporter_id: reporterId, score_a: scoreA, score_b: scoreB })),
+  confirmScore: (matchId: number, confirmerId: string) => request<Match>(`/matches/${matchId}/confirm`, post({ confirmer_id: confirmerId })),
+  disputeScore: (matchId: number, disputerId: string) => request<Match>(`/matches/${matchId}/dispute`, post({ disputer_id: disputerId })),
+  override: (matchId: number, winnerId: string) => request<Match>(`/matches/${matchId}/override`, post({ winner_id: winnerId })),
+  seedDemo: () => request<{ message: string; created: boolean }>(`/demo/seed`, post()),
 };

@@ -1,24 +1,26 @@
 import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
+
+const sans = Geist({ variable: "--font-sans", subsets: ["latin"] });
+const mono = Geist_Mono({ variable: "--font-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "EventForge | Discord Tournament, Event & Match Platform",
-  description: "Deterministic single elimination & round robin brackets, automated byes, and verified match results for Discord.",
+  title: { default: "EventForge — tournaments for Discord communities", template: "%s · EventForge" },
+  description: "Run Discord tournaments: sign-ups, seeded brackets with byes, round robins, player-reported scores with confirmation and disputes.",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
-      <body className="bg-zinc-950 text-zinc-100 flex flex-col min-h-screen selection:bg-purple-600 selection:text-white">
-        <Navbar />
-        <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8">{children}</main>
-        <Footer />
+    <html lang="en" className={`${sans.variable} ${mono.variable} h-full antialiased`}>
+      <body className="min-h-full">
+        <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:text-primary-foreground">Skip to content</a>
+        <TooltipProvider delayDuration={150}>
+          {children}
+          <Toaster position="bottom-right" richColors closeButton />
+        </TooltipProvider>
       </body>
     </html>
   );

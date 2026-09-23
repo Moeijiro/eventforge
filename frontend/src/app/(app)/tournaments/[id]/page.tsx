@@ -1,275 +1,152 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useState } from "react";
 import Link from "next/link";
-import { 
-  ArrowLeft, Trophy, Users, GitBranch, Play, CheckCircle2, 
-  AlertTriangle, Shield, Check, Send 
-} from "lucide-react";
-import { api, Tournament, Participant, Match } from "@/lib/api";
-import BracketTree from "@/components/BracketTree";
+import { useParams } from "next/navigation";
+import { toast } from "sonner";
+import { CalendarClock, GitFork, ListOrdered, Swords, UserPlus, Users } from "lucide-react";
+import { Bracket, MatchCard } from "@/components/bracket";
+import { PlayerAvatar, TournamentStatusPill } from "@/components/event";
+import { Empty, ErrorState, PageLoading, PageTitle, Panel, Stat, Table, Tag, Td, Th } from "@/components/kit/ui";
+import { MatchDialog } from "@/components/match-dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useApi } from "@/hooks/use-api";
+import { api, type Match } from "@/lib/api";
+import { formatDate, formatDateTime, FORMAT_LABEL, standings } from "@/lib/format";
 
-export default function TournamentDetailPage() {
-  const params = useParams();
-  const tournamentId = Number(params?.id);
+export default function TournamentPage() {
+  const id = Number(useParams<{ id: string }>().id);
+  const data = useApi(() => Promise.all([api.getTournament(id), api.getMatches(id)]), String(id));
+  const [open, setOpen] = useState<Match | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [name, setName] = useState("");
 
-  const [tournament, setTournament] = useState<Tournament | null>(null);
-  const [participants, setParticipants] = useState<Participant[]>([]);
-  const [matches, setMatches] = useState<Match[]>([]);
-  const [loading, setLoading] = useState(true);
+  if (data.error) return <ErrorState message={data.error} onRetry={data.reload} />;
+  if (!data.data) return <PageLoading />;
+  const [{ tournament: t, participants }, matches] = data.data;
+  const signups = t.status === "registration_open" || t.status === "check_in_open";
+  const played = matches.filter((m) => m.status === "completed" && m.participant_a_name !== "BYE" && m.participant_b_name !== "BYE").length;
+  const real = matches.filter((m) => m.participant_a_name !== "BYE" && m.participant_b_name !== "BYE").length;
+  const pending = matches.filter((m) => m.status === "awaiting_confirmation" || m.status === "disputed").length;
 
-  // Selected match modal for reporting/confirming scores
-  const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
-  const [scoreA, setScoreA] = useState(2);
-  const [scoreB, setScoreB] = useState(1);
-  const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (!tournamentId) return;
-    loadAll();
-  }, [tournamentId]);
-
-  async function loadAll() {
-    setLoading(true);
+  async function act(action: () => Promise<unknown>, success: string) {
+    setBusy(true);
     try {
-      const [tData, mData] = await Promise.all([
-        api.getTournament("tourn-demo-777", tournamentId),
-        api.getMatches("tourn-demo-777", tournamentId),
-      ]);
-      setTournament(tData.tournament);
-      setParticipants(tData.participants);
-      setMatches(mData);
+      await action();
+      toast.success(success);
+      data.reload();
     } catch (err) {
-      console.error(err);
+      toast.error((err as Error).message);
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   }
 
-  async function handleGenerateBracket() {
-    try {
-      await api.generateBracket("tourn-demo-777", tournamentId);
-      await loadAll();
-    } catch (err) {
-      alert("Failed to generate bracket.");
-    }
-  }
-
-  async function handleSubmitScore(e: React.FormEvent) {
+  async function join(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedMatch) return;
-    setSubmitting(true);
-    try {
-      // Submit as participant A or first available
-      const reporter = selectedMatch.participant_a_id || "p_1";
-      await api.submitScore(selectedMatch.id, reporter, scoreA, scoreB);
-      setSelectedMatch(null);
-      await loadAll();
-    } catch (err: any) {
-      alert(err.message || "Failed to submit score.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleConfirmScore() {
-    if (!selectedMatch) return;
-    setSubmitting(true);
-    try {
-      const confirmer = selectedMatch.participant_b_id || "p_2";
-      await api.confirmScore(selectedMatch.id, confirmer);
-      setSelectedMatch(null);
-      await loadAll();
-    } catch (err: any) {
-      alert(err.message || "Failed to confirm score.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="py-24 text-center space-y-3">
-        <div className="w-10 h-10 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-xs text-zinc-400 font-mono">Loading tournament bracket...</p>
-      </div>
-    );
-  }
-
-  if (!tournament) {
-    return (
-      <div className="py-20 text-center space-y-4">
-        <h2 className="text-xl font-bold text-white">Tournament not found</h2>
-        <Link href="/dashboard" className="text-xs text-purple-400 hover:underline">
-          Return to Tournaments
-        </Link>
-      </div>
-    );
+    const username = name.trim();
+    if (!username) return;
+    await act(() => api.joinTournament(t.id, { user_id: `u_${username.toLowerCase().replace(/\W+/g, "_")}`, username }), `${username} joined`);
+    setName("");
   }
 
   return (
-    <div className="space-y-8 py-4">
-      {/* Top Banner */}
-      <div className="space-y-3 border-b border-zinc-800/80 pb-6">
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          Back to Tournaments
-        </Link>
+    <>
+      <PageTitle
+        eyebrow={<Link href="/dashboard" className="hover:text-foreground">Tournaments</Link>}
+        title={t.title}
+        description={<span className="flex flex-wrap items-center gap-2"><TournamentStatusPill status={t.status} /><Tag>{FORMAT_LABEL[t.format]}</Tag><span>{t.description}</span></span>}
+        actions={signups ? (
+          <Button onClick={() => act(() => api.generateBracket(t.id), t.format === "round_robin" ? "Schedule generated — the league is live" : "Bracket generated — the tournament is live")} disabled={busy || participants.length < 2}>
+            <GitFork />{t.format === "round_robin" ? "Generate schedule" : "Generate bracket"}
+          </Button>
+        ) : undefined} />
 
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-white">{tournament.title}</h1>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono uppercase font-bold border bg-purple-500/10 text-purple-400 border-purple-500/30">
-                {tournament.status.replace("_", " ")}
-              </span>
-            </div>
-            <p className="text-xs text-zinc-400 leading-relaxed max-w-2xl">{tournament.description}</p>
-          </div>
-
-          {tournament.status === "registration_open" && matches.length === 0 && (
-            <button
-              onClick={handleGenerateBracket}
-              className="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1.5 transition glow-purple shrink-0"
-            >
-              <Play className="w-3.5 h-3.5" />
-              Generate Bracket
-            </button>
-          )}
-
-          {tournament.winner_name && (
-            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 text-amber-400 text-xs font-bold font-mono shrink-0">
-              <Trophy className="w-4 h-4 text-amber-400" />
-              <span>CHAMPION: {tournament.winner_name}</span>
-            </div>
-          )}
-        </div>
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat label="Players" icon={Users} value={`${participants.length} / ${t.max_participants}`} />
+        <Stat label="Matches played" icon={Swords} value={matches.length ? `${played} / ${real}` : "—"} hint={pending ? `${pending} waiting for a decision` : undefined} tone={pending ? "warn" : undefined} />
+        <Stat label="Starts" icon={CalendarClock} value={<span className="text-xl">{formatDateTime(t.start_time)}</span>} />
+        <Stat label="Champion" icon={ListOrdered} value={<span className="text-xl">{t.winner_name ?? "—"}</span>} tone={t.winner_name ? "ok" : undefined} />
       </div>
 
-      {/* Bracket Tree Container */}
-      <div className="p-6 rounded-2xl border border-zinc-800 bg-zinc-900/40 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-sm text-white flex items-center gap-2">
-            <GitBranch className="w-4 h-4 text-purple-400" />
-            Interactive Bracket Tree
-          </h3>
-          <span className="text-[11px] font-mono text-zinc-500">
-            Click any match card to submit / confirm scores
-          </span>
-        </div>
+      <Tabs defaultValue={matches.length ? "bracket" : "players"}>
+        <TabsList>
+          <TabsTrigger value="bracket"><GitFork />{t.format === "round_robin" ? "Schedule" : "Bracket"}</TabsTrigger>
+          {t.format === "round_robin" ? <TabsTrigger value="standings"><ListOrdered />Standings</TabsTrigger> : null}
+          <TabsTrigger value="players"><Users />Players ({participants.length})</TabsTrigger>
+        </TabsList>
 
-        <BracketTree matches={matches} onSelectMatch={setSelectedMatch} />
-      </div>
-
-      {/* Match Score Submission & Confirmation Modal */}
-      {selectedMatch && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-md w-full space-y-5 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-              <div>
-                <h3 className="font-bold text-base text-white">
-                  Round {selectedMatch.round_number} — Match #{selectedMatch.match_number}
-                </h3>
-                <span className="text-[10px] font-mono text-zinc-500 uppercase">Status: {selectedMatch.status}</span>
-              </div>
-              <button
-                onClick={() => setSelectedMatch(null)}
-                className="text-zinc-500 hover:text-white text-xs font-mono"
-              >
-                ✕
-              </button>
-            </div>
-
-            {selectedMatch.status === "awaiting_confirmation" ? (
-              <div className="space-y-4">
-                <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 text-xs space-y-1">
-                  <p className="font-bold">Score Submitted: {selectedMatch.score_a} – {selectedMatch.score_b}</p>
-                  <p className="text-[11px] text-zinc-400">
-                    Awaiting opponent confirmation to verify match outcome and advance winner.
-                  </p>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    onClick={() => setSelectedMatch(null)}
-                    className="px-4 py-2 rounded-lg bg-zinc-800 text-xs text-zinc-300 hover:text-white"
-                  >
-                    Close
-                  </button>
-                  <button
-                    onClick={handleConfirmScore}
-                    disabled={submitting}
-                    className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    {submitting ? "Confirming..." : "Confirm & Advance Winner"}
-                  </button>
-                </div>
-              </div>
-            ) : selectedMatch.status === "completed" ? (
-              <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 text-center space-y-2">
-                <Trophy className="w-6 h-6 text-amber-400 mx-auto" />
-                <p className="font-bold text-sm text-white">Winner: {selectedMatch.winner_name}</p>
-                <p className="text-xs text-zinc-400 font-mono">Final Score: {selectedMatch.score_a} – {selectedMatch.score_b}</p>
+        <TabsContent value="bracket" className="mt-3">
+          <Panel bodyClassName="p-5">
+            {matches.length === 0 ? (
+              <Empty icon={GitFork} title="No bracket yet" description={participants.length < 2 ? "At least two players need to sign up first." : "Close sign-ups and seed the players with Generate bracket."} />
+            ) : t.format === "round_robin" ? (
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                {[...new Set(matches.map((m) => m.round_number))].sort((a, b) => a - b).map((r) => (
+                  <section key={r} className="space-y-2">
+                    <h3 className="text-xs font-medium text-muted-foreground">Round {r}</h3>
+                    {matches.filter((m) => m.round_number === r).map((m) => <MatchCard key={m.id} match={m} onOpen={setOpen} />)}
+                  </section>
+                ))}
               </div>
             ) : (
-              <form onSubmit={handleSubmitScore} className="space-y-4">
-                <p className="text-xs text-zinc-400">Submit match score between opponents:</p>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-3 rounded-xl bg-zinc-950 border border-zinc-800 space-y-2">
-                    <span className="font-semibold text-xs text-white block truncate">
-                      {selectedMatch.participant_a_name || "TBD"}
-                    </span>
-                    <input
-                      type="number"
-                      min={0}
-                      value={scoreA}
-                      onChange={(e) => setScoreA(Number(e.target.value))}
-                      className="w-full bg-zinc-900 border border-zinc-700 rounded p-1.5 text-center text-sm font-bold text-white focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-zinc-950 border border-zinc-800 space-y-2">
-                    <span className="font-semibold text-xs text-white block truncate">
-                      {selectedMatch.participant_b_name || "TBD"}
-                    </span>
-                    <input
-                      type="number"
-                      min={0}
-                      value={scoreB}
-                      onChange={(e) => setScoreB(Number(e.target.value))}
-                      className="w-full bg-zinc-900 border border-zinc-700 rounded p-1.5 text-center text-sm font-bold text-white focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedMatch(null)}
-                    className="px-4 py-2 rounded-lg bg-zinc-800 text-xs text-zinc-300 hover:text-white"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1.5"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    {submitting ? "Submitting..." : "Submit Score"}
-                  </button>
-                </div>
-              </form>
+              <Bracket matches={matches} format={t.format} champion={t.winner_name} onOpen={setOpen} />
             )}
-          </div>
-        </div>
-      )}
-    </div>
+            {matches.length ? <p className="mt-4 text-xs text-muted-foreground">Select a match to report a score, confirm or dispute it, or settle a dispute as staff.</p> : null}
+          </Panel>
+        </TabsContent>
+
+        {t.format === "round_robin" ? (
+          <TabsContent value="standings" className="mt-3">
+            <Panel bodyClassName="p-0">
+              <Table>
+                <thead><tr><Th>#</Th><Th>Player</Th><Th className="text-right">Played</Th><Th className="text-right">W</Th><Th className="text-right">D</Th><Th className="text-right">L</Th><Th className="text-right">Diff</Th></tr></thead>
+                <tbody>
+                  {standings(matches).map((s, i) => (
+                    <tr key={s.id} className={i === 0 && t.status === "completed" ? "bg-ok/5" : undefined}>
+                      <Td className="w-10 font-mono text-xs text-muted-foreground">{i + 1}</Td>
+                      <Td><span className="flex items-center gap-2"><PlayerAvatar name={s.name} />{s.name}</span></Td>
+                      <Td className="text-right tabular">{s.played}</Td>
+                      <Td className="text-right font-medium tabular">{s.wins}</Td>
+                      <Td className="text-right tabular">{s.draws}</Td>
+                      <Td className="text-right tabular">{s.losses}</Td>
+                      <Td className="text-right tabular">{s.diff > 0 ? `+${s.diff}` : s.diff}</Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </Panel>
+          </TabsContent>
+        ) : null}
+
+        <TabsContent value="players" className="mt-3">
+          <Panel bodyClassName="p-0">
+            {signups ? (
+              <form onSubmit={join} className="flex flex-col gap-2 border-b p-4 sm:flex-row">
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Discord username" maxLength={64} aria-label="Player name" />
+                <Button type="submit" disabled={busy || !name.trim() || participants.length >= t.max_participants}><UserPlus />Sign up player</Button>
+              </form>
+            ) : null}
+            {participants.length === 0 ? <Empty icon={Users} title="No players yet" description="Players sign up from the tournament panel in Discord." /> : (
+              <ol className="divide-y">
+                {participants.map((p) => (
+                  <li key={p.id} className="flex items-center gap-3 px-5 py-3">
+                    <span className="w-8 font-mono text-xs text-muted-foreground">#{p.seed}</span>
+                    <PlayerAvatar name={p.username} />
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium">{p.username}</span>
+                    {t.winner_id === p.user_id ? <Tag className="border-ok/30 bg-ok/10 text-ok">Champion</Tag> : null}
+                    <span className="hidden text-xs text-muted-foreground sm:block">joined {formatDate(p.joined_at)}</span>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </Panel>
+        </TabsContent>
+      </Tabs>
+
+      <MatchDialog match={open} format={t.format} onClose={() => setOpen(null)} onChanged={data.reload} />
+    </>
   );
 }
