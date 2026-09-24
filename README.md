@@ -1,5 +1,7 @@
 # EventForge
 
+**Portfolio case study:** [moeijiro.github.io/portfolio/projects/eventforge](https://moeijiro.github.io/portfolio/projects/eventforge/) · **Live demo:** not hosted — the app runs locally in a few commands (see below).
+
 **Run the tournament where your players already are.** EventForge takes sign-ups in
 Discord, then seeds a single-elimination bracket with fair byes or a round-robin league.
 Players report their own scores: the opponent confirms, and disputes go to staff. The
